@@ -23,7 +23,7 @@
 /* origin is the upper left corner */
 unsigned char image[HEIGHT][WIDTH];
 
-int glyph_width,glyph_height;
+int glyph_width,glyph_height,font_width,font_height;
 int start_x,start_y;
 
 
@@ -63,8 +63,7 @@ uint16_t get_unicode(uint16_t gb2312){
 	return unic[ch_index];
 }
 
-void
-show_image( void )
+void show_image(void)
 {
   int  i, j;
   for ( i = start_y; i < glyph_height; i++ )
@@ -75,9 +74,44 @@ show_image( void )
   }
 }
 
-void gen_bitmap(const char *filename)
+
+void append_code(uint16_t code,FT_Face face,FILE* fw){
+	uint16_t i,j;
+	uint16_t cn_unic = get_unicode(code);
+	FT_GlyphSlot slot = face->glyph;
+
+	memset(image,0,sizeof(image));
+	FT_Error error;
+	error =	FT_Load_Char(face,cn_unic,FT_LOAD_RENDER);
+	if(error) exit(1);
+
+	 glyph_width = (face->glyph->metrics.width + face->glyph->metrics.horiBearingX)/64;
+	 glyph_height = (face->glyph->metrics.height + face->glyph->metrics.vertBearingY)/64 + 1;
+	 start_x = face->glyph->metrics.horiBearingX/64;
+	 start_y = face->glyph->metrics.vertBearingY/64 + 1;
+	 font_width = face->glyph->metrics.width/64;
+	 font_height = face->glyph->metrics.width/64;
+
+	 draw_bitmap( &slot->bitmap,slot->bitmap_left,HEIGHT- slot->bitmap_top );
+	 printf("%04x %ld %ld %ld %ld\n",code,face->glyph->metrics.width/64,face->glyph->metrics.height/64,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
+	
+
+	 fprintf(fw,"#define NXFONT_METRICS_%04x {%d, %d, %d, %d, %d, 0}\n",code,glyph_width,font_width,font_height,start_x,start_y-1);
+	 fprintf(fw,"#define NXFONT_BITMAP_%04x {",code);
+	 for ( i = start_y; i < glyph_height; i++ )
+		for ( j = start_x; j < glyph_width; j++ )
+			if(i == glyph_height-1 && j == glyph_width-1)
+				fprintf(fw,"0x%02x",image[i][j]);
+			else
+				fprintf(fw,"0x%02x,",image[i][j]);
+
+	 fprintf(fw,"}\n");
+}
+
+
+void gen_bitmap(const char *filename, FT_Face face)
 {
-  int i,j,k,num;
+  uint16_t i;
   FILE *fw = fopen(filename,"a");
 
   fprintf(fw,"#ifndef __GRAPHICS_NXFONTS_NXFONTS_CN50X50_H\n");
@@ -92,9 +126,14 @@ void gen_bitmap(const char *filename)
   fprintf(fw,"#define NXFONT_SPACEWIDTH	%d\n",6);
 
 
-  for ( i = start_y; i < glyph_height; i++ )
-  {
-    for ( j = start_x; j < glyph_width; j++ );
+  for(i=0xb0a1;i<0xf7fe;){
+		if(i - (i&0xff00) == 0xfe){
+			i = (i&0xff00) +0x1a1;
+		}
+		else{
+			i++;
+		}
+	    append_code(i,face,fw);
   }
 
   fprintf(fw,"#undef EXTERN	\
@@ -178,55 +217,23 @@ main( int     argc,
   pen.x = 0 * 64;
   pen.y = ( target_height - 50 ) * 64;
 
-  for ( n = 0; n < num_chars; n++ )
-  {
-    uint32_t wch;
-    uint16_t w16ch;
-    char *inbuf, *outbuf;
-    size_t insize, outsize;
-    int k;
+  FT_Set_Transform( face, &matrix, &pen );
 
-    /* set transformation */
-    FT_Set_Transform( face, &matrix, &pen );
 
-    inbuf = (char *)(text + 3*n);
-    outbuf = (char *)&wch;
-    insize = 3, outsize = 4;
-    iconv(cd, &inbuf, &insize, &outbuf, &outsize);
-    /*
-    printf("%04x -> %04x(%d)\n", text[n], wch, outsize);
-
-    for (k=0; k<strlen(text); ++k)
-	    printf("%02x ", (unsigned char)text[k]);
-    printf("\n");
-    */
-    if (outsize)
-       w16ch = wch & 0xffff;
-    else
-       w16ch = wch >> 16;
-    /* load glyph image into the slot (erase previous one) */
-	w16ch = 0x41;
-    error = FT_Load_Char( face, w16ch, FT_LOAD_RENDER );
-	printf("%ld %ld %ld %ld\n",face->glyph->metrics.width/64,face->glyph->metrics.height/64,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
-    if ( error )
-      continue;                 /* ignore errors */
-
-    /* now, draw to our target surface (convert position) */
-	glyph_width = (face->glyph->metrics.width + face->glyph->metrics.horiBearingX)/64;
-	glyph_height = (face->glyph->metrics.height + face->glyph->metrics.vertBearingY)/64 + 1;
-	start_x = face->glyph->metrics.horiBearingX/64;
-	start_y = face->glyph->metrics.vertBearingY/64 + 1;
-
-    draw_bitmap( &slot->bitmap,
-                 slot->bitmap_left,
-                 target_height - slot->bitmap_top );
-
-    /* increment pen position */
-    pen.x += slot->advance.x;
-    pen.y += slot->advance.y;
-  }
-
+  /*
+  uint16_t w16ch = 0x963f;
+  error = FT_Load_Char( face, w16ch, FT_LOAD_RENDER );
+  printf("%ld %ld %ld %ld\n",face->glyph->metrics.width/64,face->glyph->metrics.height/64,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
+  glyph_width = (face->glyph->metrics.width + face->glyph->metrics.horiBearingX)/64;
+  glyph_height = (face->glyph->metrics.height + face->glyph->metrics.vertBearingY)/64 + 1;
+  start_x = face->glyph->metrics.horiBearingX/64;
+  start_y = face->glyph->metrics.vertBearingY/64 + 1;
+  draw_bitmap( &slot->bitmap,slot->bitmap_left,target_height - slot->bitmap_top );
   show_image();
+  */
+
+  gen_bitmap("50x50.c",face);
+  //append_code(0xf7fe,face,NULL);
 
   FT_Done_Face    ( face );
   FT_Done_FreeType( library );
