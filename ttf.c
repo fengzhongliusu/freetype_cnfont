@@ -58,7 +58,6 @@ void
 show_image( void )
 {
   int  i, j;
-  printf("%d %d\n",glyph_height,glyph_width);
   for ( i = start_y; i < glyph_height; i++ )
   {
     for ( j = start_x; j < glyph_width; j++ )
@@ -128,10 +127,10 @@ main( int     argc,
   error = FT_Set_Char_Size( face, 40 * 64, 0, 102, 0 );                /* set character size */
   /* error handling omitted */
 
-  if(FT_HAS_VERTICAL(face)){
+  /*if(FT_HAS_VERTICAL(face)){
 	  printf("########################################\n");
 	  printf("%ld %ld \n",face->glyph->metrics.width,face->glyph->metrics.height);
-  }
+  }*/
 
   slot = face->glyph;
 
