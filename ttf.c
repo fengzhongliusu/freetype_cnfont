@@ -26,6 +26,7 @@ unsigned char image[HEIGHT][WIDTH];
 unsigned char bitmap_matrix[NUM];
 
 int glyph_width,glyph_height;
+int start_x,start_y;
 
 
 /* Replace this function with something useful. */
@@ -58,9 +59,9 @@ show_image( void )
 {
   int  i, j;
   printf("%d %d\n",glyph_height,glyph_width);
-  for ( i = 0; i <= glyph_height; i++ )
+  for ( i = start_y; i < glyph_height; i++ )
   {
-    for ( j = 0; j < glyph_width; j++ )
+    for ( j = start_x; j < glyph_width; j++ )
       putchar(image[i][j] == 0?'-':image[i][j] <128?'*':'o');
     putchar( '\n' );
   }
@@ -72,25 +73,9 @@ void gen_bitmap(void)
 	int count = 0;
 	unsigned char list_8[8];
 
-	for(i=2; i < HEIGHT; i++)
-		for( j = 0,num = 0; j < WIDTH; j++){
-			num ++;
-			list_8[num-1] = image[i][j]<100?0:1;
-			if(num % 8 == 0){
-				bitmap_matrix[count] = (list_8[0]<<7) + (list_8[1]<<6) + (list_8[2]<<5) +(list_8[3]<<4)  + (list_8[4]<<3)  + (list_8[5]<<2) + (list_8[6]<<1) + list_8[7];
-				num = 0;
-				count += 1;
-			}
-		}
-	printf("%d\n",count);
-
-	for(i=0;i<count;i++)
-		printf("0x%02x,",bitmap_matrix[i]);
-	printf("\n\n");
-
 	for(i=2;i<HEIGHT;i++){
 		for(j=0;j<WIDTH;j++){
-			printf("0x%02x,",image[i][j]);
+			//printf("0x%02x,",image[i][j]);
 		}
 	}
 	printf("\n\n");
@@ -189,14 +174,15 @@ main( int     argc,
        w16ch = wch >> 16;
     /* load glyph image into the slot (erase previous one) */
     error = FT_Load_Char( face, w16ch, FT_LOAD_RENDER );
-	printf("%ld %ld %ld %ld\n",face->glyph->metrics.width,face->glyph->metrics.height,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
-	printf("%ld %ld \n",face->glyph->metrics.width/64,face->glyph->metrics.height/64);
+	printf("%ld %ld %ld %ld\n",face->glyph->metrics.width/64,face->glyph->metrics.height/64,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
     if ( error )
       continue;                 /* ignore errors */
 
     /* now, draw to our target surface (convert position) */
 	glyph_width = (face->glyph->metrics.width + face->glyph->metrics.horiBearingX)/64;
-	glyph_height = (face->glyph->metrics.height + face->glyph->metrics.vertBearingY)/64;
+	glyph_height = (face->glyph->metrics.height + face->glyph->metrics.vertBearingY)/64 + 1;
+	start_x = face->glyph->metrics.horiBearingX/64;
+	start_y = face->glyph->metrics.vertBearingY/64 + 1;
 
     draw_bitmap( &slot->bitmap,
                  slot->bitmap_left,
