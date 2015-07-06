@@ -9,6 +9,8 @@
 #include <math.h>
 #include <stdint.h>
 #include <iconv.h>
+#include <stdlib.h>
+#include "ttf.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -16,14 +18,10 @@
 
 #define WIDTH   64
 #define HEIGHT  64
-#define NUM		512
-
-
 
 
 /* origin is the upper left corner */
 unsigned char image[HEIGHT][WIDTH];
-unsigned char bitmap_matrix[NUM];
 
 int glyph_width,glyph_height;
 int start_x,start_y;
@@ -31,28 +29,39 @@ int start_x,start_y;
 
 /* Replace this function with something useful. */
 
-void
+	void
 draw_bitmap( FT_Bitmap*  bitmap,
-             FT_Int      x,
-             FT_Int      y)
+		FT_Int      x,
+		FT_Int      y)
 {
-  FT_Int  i, j, p, q;
-  FT_Int  x_max = x + bitmap->width;
-  FT_Int  y_max = y + bitmap->rows;
+	FT_Int  i, j, p, q;
+	FT_Int  x_max = x + bitmap->width;
+	FT_Int  y_max = y + bitmap->rows;
 
-  for ( i = x, p = 0; i < x_max; i++, p++ )
-  {
-    for ( j = y, q = 0; j < y_max; j++, q++ )
-    {
-      if ( i < 0      || j < 0       ||
-           i >= WIDTH || j >= HEIGHT )
-        continue;
+	for ( i = x, p = 0; i < x_max; i++, p++ )
+	{
+		for ( j = y, q = 0; j < y_max; j++, q++ )
+		{
+			if ( i < 0      || j < 0       ||
+					i >= WIDTH || j >= HEIGHT )
+				continue;
 
-      image[j][i] |= bitmap->buffer[q * bitmap->width + p];
-    }
-  }
+			image[j][i] |= bitmap->buffer[q * bitmap->width + p];
+		}
+	}
 }
 
+uint16_t get_unicode(uint16_t gb2312){
+	uint8_t ch_H,ch_L;
+	uint32_t ch_index,count;
+	FILE* f_read;
+
+	ch_H = gb2312 >> 8;
+	ch_L = gb2312 - (ch_H << 8);
+	ch_index = (ch_H - 0xb0)*94 + ch_L - 0xa1;
+
+	return unic[ch_index];
+}
 
 void
 show_image( void )
@@ -66,19 +75,44 @@ show_image( void )
   }
 }
 
-void gen_bitmap(void)
+void gen_bitmap(const char *filename)
 {
-	int i,j,k,num;
-	int count = 0;
-	unsigned char list_8[8];
+  int i,j,k,num;
+  FILE *fw = fopen(filename,"a");
 
-	for(i=2;i<HEIGHT;i++){
-		for(j=0;j<WIDTH;j++){
-			//printf("0x%02x,",image[i][j]);
-		}
-	}
-	printf("\n\n");
+  fprintf(fw,"#ifndef __GRAPHICS_NXFONTS_NXFONTS_CN50X50_H\n");
+  fprintf(fw,"#define __GRAPHICS_NXFONTS_NXFONTS_SANS28X37_H\n");
+  fprintf(fw,"#define NXFONT_ID         FONTID_CN50X50\n");
+  fprintf(fw,"#define NXFONT_MIN7BIT    %d\n",33);
+  fprintf(fw,"#define NXFONT_MAX7BIT    %d\n",126);
+  fprintf(fw,"#define NXFONT_MIN8BIT	%d\n",0xb0a1);
+  fprintf(fw,"#define NXFONT_MAX8BIT	%d\n",0xb0a1);
+  fprintf(fw,"#define NXFONT_MAXHEIGHT	%d\n",64);
+  fprintf(fw,"#define NXFONT_MAXWIDTH	%d\n",64);
+  fprintf(fw,"#define NXFONT_SPACEWIDTH	%d\n",6);
+
+
+  for ( i = start_y; i < glyph_height; i++ )
+  {
+    for ( j = start_x; j < glyph_width; j++ );
+  }
+
+  fprintf(fw,"#undef EXTERN	\
+		  \n#if defined(__cplusplus)	\
+		  \n#define EXTERN extern \"C\"	\
+		  \nextern \"C\" {	\
+		  \n#else	\
+		  \n#define EXTERN extern	\
+		  \n#endif	\
+		  \n#undef EXTERN	\
+		  \n#if defined(__cplusplus)	\
+		  \n}	\
+		  \n#endif	\
+		  \n#endif\n");
+
+  fclose(fw);
 }
+
 
 int
 main( int     argc,
@@ -100,7 +134,6 @@ main( int     argc,
   int           n, num_chars;
 
   iconv_t       cd;
-
 
   cd = iconv_open("utf-16","utf-8");
 
@@ -172,6 +205,7 @@ main( int     argc,
     else
        w16ch = wch >> 16;
     /* load glyph image into the slot (erase previous one) */
+	w16ch = 0x41;
     error = FT_Load_Char( face, w16ch, FT_LOAD_RENDER );
 	printf("%ld %ld %ld %ld\n",face->glyph->metrics.width/64,face->glyph->metrics.height/64,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
     if ( error )
@@ -193,7 +227,6 @@ main( int     argc,
   }
 
   show_image();
-  gen_bitmap();
 
   FT_Done_Face    ( face );
   FT_Done_FreeType( library );
