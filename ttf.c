@@ -66,9 +66,9 @@ uint16_t get_unicode(uint16_t gb2312){
 void show_image(void)
 {
   int  i, j;
-  for ( i = start_y; i < glyph_height; i++ )
+  for ( i = 0; i < HEIGHT; i++ )
   {
-    for ( j = start_x; j < glyph_width; j++ )
+    for ( j = 0; j < WIDTH; j++ )
       putchar(image[i][j] == 0?'-':image[i][j] <128?'*':'o');
     putchar( '\n' );
   }
