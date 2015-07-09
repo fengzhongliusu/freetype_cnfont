@@ -75,13 +75,40 @@ void show_image(void)
 }
 
 
-void append_code(uint16_t code,FT_Face face,FILE* fw){
+void append_en(uint8_t code,FT_Face face, FILE* fw){	
 	uint16_t i,j;
-	uint16_t cn_unic = get_unicode(code);
-	FT_GlyphSlot slot = face->glyph;
+	FT_Error error;
+	FT_GlyphSlot slot;
+
+	slot = face->glyph;
+	memset(image,0,sizeof(image));
+	error =	FT_Load_Char(face,code,FT_LOAD_RENDER);
+	if(error) exit(1);
+
+	 glyph_width = (face->glyph->metrics.width + face->glyph->metrics.horiBearingX)/64;
+	 glyph_height = (face->glyph->metrics.height + face->glyph->metrics.vertBearingY)/64 + 1;
+	 start_x = face->glyph->metrics.horiBearingX/64;
+	 start_y = face->glyph->metrics.vertBearingY/64 + 1;
+	 font_width = face->glyph->metrics.width/64;
+	 font_height = face->glyph->metrics.height/64;
+
+	 draw_bitmap( &slot->bitmap,slot->bitmap_left,HEIGHT- slot->bitmap_top );
+
+	printf("%02x %ld %ld %ld %ld\n",code,face->glyph->metrics.width/64,face->glyph->metrics.height/64,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
+	show_image();
+}
+
+
+void append_cn(uint16_t code,FT_Face face,FILE* fw){
+	uint16_t i,j;
+	uint16_t cn_unic;
+	FT_Error error;
+	FT_GlyphSlot slot;
+	
+	cn_unic = get_unicode(code);
+	slot = face->glyph;
 
 	memset(image,0,sizeof(image));
-	FT_Error error;
 	error =	FT_Load_Char(face,cn_unic,FT_LOAD_RENDER);
 	if(error) exit(1);
 
@@ -90,14 +117,14 @@ void append_code(uint16_t code,FT_Face face,FILE* fw){
 	 start_x = face->glyph->metrics.horiBearingX/64;
 	 start_y = face->glyph->metrics.vertBearingY/64 + 1;
 	 font_width = face->glyph->metrics.width/64;
-	 font_height = face->glyph->metrics.width/64;
+	 font_height = face->glyph->metrics.height/64;
 
 	 draw_bitmap( &slot->bitmap,slot->bitmap_left,HEIGHT- slot->bitmap_top );
-	 printf("%04x %ld %ld %ld %ld\n",code,face->glyph->metrics.width/64,face->glyph->metrics.height/64,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
-	
 
-	 fprintf(fw,"#define NXFONT_METRICS_%04x {%d, %d, %d, %d, %d, 0}\n",code,glyph_width,font_width,font_height,start_x,start_y-1);
-	 fprintf(fw,"#define NXFONT_BITMAP_%04x {",code);
+	 if(fw == NULL) goto A;
+
+	 fprintf(fw,"#define NXFONT_METRICS_0x%04x {%d, %d, %d, %d, %d, 0}\n",code,glyph_width,font_width,font_height,start_x,start_y-1);
+	 fprintf(fw,"#define NXFONT_BITMAP_0x%04x {",code);
 	 for ( i = start_y; i < glyph_height; i++ )
 		for ( j = start_x; j < glyph_width; j++ )
 			if(i == glyph_height-1 && j == glyph_width-1)
@@ -106,6 +133,11 @@ void append_code(uint16_t code,FT_Face face,FILE* fw){
 				fprintf(fw,"0x%02x,",image[i][j]);
 
 	 fprintf(fw,"}\n");
+	 A:
+	 if(code == 0xb0a1){
+		 printf("%04x %ld %ld %ld %ld\n",code,face->glyph->metrics.width/64,face->glyph->metrics.height/64,face->glyph->metrics.horiBearingX/64,face->glyph->metrics.vertBearingY/64);
+		 show_image();
+	 }
 }
 
 
@@ -114,26 +146,26 @@ void gen_bitmap(const char *filename, FT_Face face)
   uint16_t i;
   FILE *fw = fopen(filename,"a");
 
-  fprintf(fw,"#ifndef __GRAPHICS_NXFONTS_NXFONTS_CN50X50_H\n");
-  fprintf(fw,"#define __GRAPHICS_NXFONTS_NXFONTS_SANS28X37_H\n");
-  fprintf(fw,"#define NXFONT_ID         FONTID_CN50X50\n");
+  fprintf(fw,"#ifndef __GRAPHICS_NXFONTS_NXFONTS_CN50_H\n");
+  fprintf(fw,"#define __GRAPHICS_NXFONTS_NXFONTS_CN50_H\n");
+  fprintf(fw,"#define NXFONT_ID         FONTID_CN50\n");
   fprintf(fw,"#define NXFONT_MIN7BIT    %d\n",33);
   fprintf(fw,"#define NXFONT_MAX7BIT    %d\n",126);
-  fprintf(fw,"#define NXFONT_MIN8BIT	%d\n",0xb0a1);
-  fprintf(fw,"#define NXFONT_MAX8BIT	%d\n",0xb0a1);
+  fprintf(fw,"#define NXFONT_MIN8BIT	0x%04x\n",0xb0a1);
+  fprintf(fw,"#define NXFONT_MAX8BIT	0x%04x\n",0xf7fe);
   fprintf(fw,"#define NXFONT_MAXHEIGHT	%d\n",64);
   fprintf(fw,"#define NXFONT_MAXWIDTH	%d\n",64);
   fprintf(fw,"#define NXFONT_SPACEWIDTH	%d\n",6);
 
 
-  for(i=0xb0a1;i<0xf7fe;){
+  for(i=0xb0a1;i<=0xf7fe;){
+	    append_cn(i,face,fw);
 		if(i - (i&0xff00) == 0xfe){
 			i = (i&0xff00) +0x1a1;
 		}
 		else{
 			i++;
 		}
-	    append_code(i,face,fw);
   }
 
   fprintf(fw,"#undef EXTERN	\
@@ -172,19 +204,19 @@ main( int     argc,
   int           target_height;
   int           n, num_chars;
 
-  iconv_t       cd;
+  //iconv_t       cd;
 
-  cd = iconv_open("utf-16","utf-8");
+  //cd = iconv_open("utf-16","utf-8");
 
+  /*
   if ( argc != 3 )
   {
     fprintf ( stderr, "usage: %s font sample-text\n", argv[0] );
     exit( 1 );
   }
+  */
 
-  filename      = argv[1];                           /* first argument     */
-  text          = argv[2];                           /* second argument    */
-  num_chars     = strlen( text ) / 3;
+  filename      = "simhei.ttf";                           /* first argument     */
   angle         = ( 0.0 / 360 ) * 3.14159 * 2;      /* use 25 degrees     */
   target_height = HEIGHT;
 
@@ -232,13 +264,14 @@ main( int     argc,
   show_image();
   */
 
-  gen_bitmap("50x50.c",face);
-  //append_code(0xf7fe,face,NULL);
+  //gen_bitmap("50x50.c",face);
+  append_cn(0xb0a1,face,NULL);
+  //append_en(0x41,face,NULL);
 
   FT_Done_Face    ( face );
   FT_Done_FreeType( library );
 
-  iconv_close(cd);
+  //iconv_close(cd);
   return 0;
 }
 
